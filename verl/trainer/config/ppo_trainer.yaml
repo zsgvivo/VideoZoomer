@@ -1,0 +1,230 @@
+data:
+  tokenizer: null
+  train_files: ~/data/rlhf/gsm8k/train.parquet
+  val_files: ~/data/rlhf/gsm8k/test.parquet
+  prompt_key: prompt
+  max_prompt_length: 512
+  max_response_length: 512
+  train_batch_size: 1024
+  val_batch_size: null # DEPRECATED: Validation datasets are sent to inference engines as a whole batch, which will schedule the memory themselves
+  return_raw_input_ids: False  # This should be set to true when the tokenizer between policy and rm differs
+  return_raw_chat: True
+  shuffle: True
+  image_key: images
+  system_prompt: null
+  post_prompt: null
+  max_pixels: 4190208
+  min_pixels: 262144
+  pass_video_as_frames: True  # True to pass video as multiple frames with index label
+  video_fps: 1
+  frames_upbound: 30
+  storage_system: 'local'
+  fast_seek: False # Fast seek to frame position, this does not guarantee accurate position, set to True when video loading is slow. https://github.com/dmlc/decord/blob/d2e56190286ae394032a8141885f76d5372bd44b/python/decord/video_reader.py#L204
+  random_fps: null
+actor_rollout_ref:
+  hybrid_engine: True
+  model:
+    path: ~/models/deepseek-llm-7b-chat
+    is_qwen: True
+    external_lib: null
+    override_config: { }
+    enable_gradient_checkpointing: True
+    use_remove_padding: False
+    freeze_vision_tower: False
+  actor:
+    strategy: fsdp  # This is for backward-compatibility
+    ppo_mini_batch_size: 256
+    ppo_micro_batch_size: null # will be deprecated, use ppo_micro_batch_size_per_gpu
+    ppo_micro_batch_size_per_gpu: null
+    use_dynamic_bsz: False
+    ppo_max_token_len_per_gpu: 16384 # n * ${data.max_prompt_length} + ${data.max_response_length}
+    grad_clip: 1.0
+    clip_ratio: 0.2
+    clip_ratio_low: null
+    clip_ratio_high: null
+    entropy_coeff: 0.001
+    use_kl_loss: False # True for GRPO
+    kl_loss_coef: 0.001 # for grpo
+    kl_loss_type: low_var_kl # for grpo
+    ppo_epochs: 1
+    shuffle: False
+    ulysses_sequence_parallel_size: 1 # sp size
+    optim:
+      lr: 1e-6
+      lr_warmup_steps_ratio: 0.  # the total steps will be injected during runtime
+      min_lr_ratio: null   # only useful for warmup with cosine
+      warmup_style: constant  # select from constant/cosine
+      total_training_steps: -1  # must be override by program
+      lr_scheduler: cosine
+    fsdp_config:
+      wrap_policy:
+        # transformer_layer_cls_to_wrap: None
+        min_num_params: 0
+      param_offload: False
+      optimizer_offload: False
+      fsdp_size: -1
+      use_orig_params: False
+  ref:
+    fsdp_config:
+      param_offload: False
+      wrap_policy:
+        # transformer_layer_cls_to_wrap: None
+        min_num_params: 0
+    log_prob_micro_batch_size: null # will be deprecated, use log_prob_micro_batch_size_per_gpu
+    log_prob_micro_batch_size_per_gpu: null
+    log_prob_use_dynamic_bsz: ${actor_rollout_ref.actor.use_dynamic_bsz}
+    log_prob_max_token_len_per_gpu: ${actor_rollout_ref.actor.ppo_max_token_len_per_gpu}
+    ulysses_sequence_parallel_size: ${actor_rollout_ref.actor.ulysses_sequence_parallel_size} # sp size
+  rollout:
+    name: vllm
+    mode: async
+    tool_call: video_zoom
+    temperature: 1.0
+    top_k: -1 # 0 for hf rollout, -1 for vllm rollout
+    top_p: 1
+    use_fire_sampling: False # https://arxiv.org/abs/2410.21236
+    prompt_length: ${data.max_prompt_length}  # not use for opensource
+    response_length: ${data.max_response_length}
+    # for vllm rollout
+    dtype: bfloat16 # should align with FSDP
+    gpu_memory_utilization: 0.5
+    ignore_eos: False
+    enforce_eager: True
+    free_cache_engine: True
+    load_format: dummy_dtensor
+    tensor_model_parallel_size: 2
+    max_num_batched_tokens: 8192
+    max_model_len: null
+    max_num_seqs: 1024
+    log_prob_micro_batch_size: null # will be deprecated, use log_prob_micro_batch_size_per_gpu
+    log_prob_micro_batch_size_per_gpu: null
+    log_prob_use_dynamic_bsz: ${actor_rollout_ref.actor.use_dynamic_bsz}
+    log_prob_max_token_len_per_gpu: ${actor_rollout_ref.actor.ppo_max_token_len_per_gpu}
+    disable_log_stats: True
+    enable_chunked_prefill: True # may get higher throughput when set to True. When activated, Please increase max_num_batched_tokens or decrease max_model_len.
+    # for hf rollout
+    do_sample: True
+    # number of responses (i.e. num sample times)
+    n: 1 # > 1 for grpo
+    val_n: 1
+    limit_mm_per_prompt: {'image': 1}
+    max_concurrency: 64
+    max_total_response_length: 32768
+    max_generation_round: 1
+    data_storage_system: ${data.storage_system}
+    data_max_pixels: ${data.max_pixels}
+    data_min_pixels: ${data.min_pixels}
+    tool_call_max_frames: 16
+    gen_batch_size: -1
+    tool_call_workers_num: 16
+critic:
+  strategy: fsdp
+  optim:
+    lr: 1e-5
+    lr_warmup_steps_ratio: 0.  # the total steps will be injected during runtime
+    min_lr_ratio: null   # only useful for warmup with cosine
+    warmup_style: constant  # select from constant/cosine
+    total_training_steps: -1  # must be override by program
+  model:
+    path: ~/models/deepseek-llm-7b-chat
+    tokenizer_path: ${actor_rollout_ref.model.path}
+    override_config: { }
+    external_lib: ${actor_rollout_ref.model.external_lib}
+    enable_gradient_checkpointing: True
+    use_remove_padding: False
+    fsdp_config:
+      param_offload: False
+      optimizer_offload: False
+      wrap_policy:
+        # transformer_layer_cls_to_wrap: None
+        min_num_params: 0
+      fsdp_size: -1
+  ppo_mini_batch_size: ${actor_rollout_ref.actor.ppo_mini_batch_size}
+  ppo_micro_batch_size: null # will be deprecated, use ppo_micro_batch_size_per_gpu
+  ppo_micro_batch_size_per_gpu: null
+  forward_micro_batch_size: ${critic.ppo_micro_batch_size}
+  forward_micro_batch_size_per_gpu: ${critic.ppo_micro_batch_size_per_gpu}
+  use_dynamic_bsz: ${actor_rollout_ref.actor.use_dynamic_bsz}
+  ppo_max_token_len_per_gpu: 32768 # (${actor_rollout_ref.actor.ppo_max_token_len_per_gpu}) * 2
+  forward_max_token_len_per_gpu: ${critic.ppo_max_token_len_per_gpu}
+  ulysses_sequence_parallel_size: 1 # sp size
+  ppo_epochs: ${actor_rollout_ref.actor.ppo_epochs}
+  shuffle: ${actor_rollout_ref.actor.shuffle}
+  grad_clip: 1.0
+  cliprange_value: 0.5
+
+reward_model:
+  enable: False
+  strategy: fsdp
+  model:
+    input_tokenizer: ${actor_rollout_ref.model.path}  # set this to null if the chat template is identical
+    path: ~/models/FsfairX-LLaMA3-RM-v0.1
+    external_lib: ${actor_rollout_ref.model.external_lib}
+    use_remove_padding: False
+    fsdp_config:
+      min_num_params: 0
+      param_offload: False
+      fsdp_size: -1
+  micro_batch_size: null # will be deprecated, use micro_batch_size_per_gpu
+  micro_batch_size_per_gpu: null # set a number
+  max_length: null
+  ulysses_sequence_parallel_size: 1 # sp size
+  use_dynamic_bsz: ${critic.use_dynamic_bsz}
+  forward_max_token_len_per_gpu: ${critic.forward_max_token_len_per_gpu}
+  reward_manager: naive
+  val_reward_manager: null
+  log_rewards_separately: False
+  acc_reward_weight: 0.9
+  format_reward_weight: 0.1
+  forced_tool_call: False
+  tool_call_penalty: 0.0
+  penalty_per_turn: 0.0
+  tool_call_frame_target: 0
+  tool_call_frame_num_penalty: 0.0
+  penalize_correct_tool_call: True
+  penalize_incorrect_tool_call: False
+  overlength_reward_weight: 0.0
+  gpt_extract_answer: False
+  target_tool_call_rate: 1.0
+  judge_mc_by_gpt: False
+  filter_unfinished_traj: False
+
+algorithm:
+  gamma: 1.0
+  lam: 1.0
+  adv_estimator: gae
+  kl_penalty: kl  # how to estimate kl divergence
+  kl_ctrl:
+    type: fixed
+    kl_coef: 0.001
+  max_num_gen_batches: 256
+
+trainer:
+  rejection_sample: False
+  rejection_sample_multiplier: 1 # Multiple the training batch size by this factor to account for rejection sampling reduction.
+  total_epochs: 30
+  total_training_steps: null
+  project_name: verl_examples
+  experiment_name: gsm8k
+  logger: [ 'console', 'wandb' ]
+  log_training_rollouts_freq: -1
+  train_generations_to_log_to_wandb: 0
+  val_generations_to_log_to_wandb: 0
+  tool_call_generations_to_log_to_wandb: 0
+  nnodes: 1
+  n_gpus_per_node: 8
+  save_freq: -1
+  # auto: find the last ckpt to resume. If can't find, start from scratch
+  resume_mode: auto # or auto or resume_path if 
+  resume_from_path: False
+  rollout_data_dir: null
+  validation_data_dir: null
+  test_freq: -1
+  critic_warmup: 0
+  default_hdfs_dir: null
+  remove_previous_ckpt_in_save: False
+  del_local_ckpt_after_load: False
+  default_local_dir: checkpoints/${trainer.project_name}/${trainer.experiment_name}
+  reflection_keywords: null
+  val_only: False
+  save_mem: False
