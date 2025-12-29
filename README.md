@@ -24,7 +24,7 @@ We use LLaMA-Factory to perform SFT on our cold-start data. We use Qwen2.5-VL-7B
 
 Install [LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory).
 
-Download the [SFT dataset](https://huggingface.co/datasets/zsgvivo/videozoomer_sft) form huggingface.
+Download the [SFT dataset](https://huggingface.co/datasets/zsgvivo/videozoomer_sft) from huggingface.
 
 Follow the instructions in LLaMA-Factory to configure the cold-start data in data/dataset_info.json, 
 run the following command to train your model.
@@ -39,5 +39,5 @@ The reinforcement learning is based on the cold-start model. Download the [RL da
 ## Evaluation
 The evaluation is also based on verl framework, set `trainer.val_only=True` in the script to conduct evaluation. Run `bash scripts/eval_video.sh` to evaluate the model with tool call, and `scripts/eval_video_notool.sh` to evaluate the model without tool call.
 
-Change actor_rollout_ref.rollout.max_generation_round, actor_rollout_ref.rollout.tool_call_max_frames to evaluate the model with different max generation round and toolmax frames per turn.
+Change `actor_rollout_ref.rollout.max_generation_round`, `actor_rollout_ref.rollout.tool_call_max_frames` to evaluate the model with different max generation round and toolmax frames per turn.
 
