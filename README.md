@@ -41,3 +41,15 @@ The evaluation is also based on verl framework, set `trainer.val_only=True` in t
 
 Change `actor_rollout_ref.rollout.max_generation_round`, `actor_rollout_ref.rollout.tool_call_max_frames` to evaluate the model with different max generation round and toolmax frames per turn.
 
+
+## Citation
+If you find this repo useful for your research, please consider citing the paper
+```
+@article{videozoomer,
+    title={VideoZoomer: Reinforcement-Learned Temporal Focusing for Long Video Reasoning}, 
+    author={Yang Ding and Yizhen Zhang and Xin Lai and Ruihang Chu and Yujiu Yang},
+    year={2025},
+    journal={arXiv:2512.22315},
+    url={https://arxiv.org/abs/2512.22315}, 
+}
+```
