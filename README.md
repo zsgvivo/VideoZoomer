@@ -1,5 +1,5 @@
 # VIDEOZOOMER: REINFORCEMENT-LEARNED TEMPORAL FOCUSING FOR LONG VIDEO REASONING
-<a href='https://huggingface.co/zsgvivo/videozoomer'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Models-blue'></a>
+<a href='https://www.arxiv.org/abs/2512.22315'><img src='https://img.shields.io/badge/Paper-Arxiv-red'></a> <a href='https://huggingface.co/zsgvivo/videozoomer'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Models-blue'></a>
 
 This repository releases the official code for VideoZoomer.  The training code is based on [verl](https://github.com/volcengine/verl).
 
